@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DL Booster Deep Link 測試頁</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            padding: 24px;
+            line-height: 1.6;
+        }
+        h1 {
+            font-size: 22px;
+            margin-bottom: 8px;
+        }
+        h2 {
+            font-size: 18px;
+            margin-top: 24px;
+            margin-bottom: 8px;
+        }
+        .case {
+            margin-bottom: 16px;
+            padding: 12px 16px;
+            border-radius: 8px;
+            background: #f8f9fa;
+        }
+        .label {
+            font-weight: 600;
+        }
+        a {
+            display: inline-block;
+            margin-top: 4px;
+            color: #0d6efd;
+            text-decoration: none;
+        }
+        a:hover {
+            text-decoration: underline;
+        }
+        .expect {
+            font-size: 13px;
+            color: #555;
+            margin-top: 4px;
+        }
+        /* 錯誤訊息特別用紅色顯示，方便一眼看出來與截圖 */
+        #runtimeErrorMessage {
+            color: #d32f2f;
+            font-weight: 600;
+        }
+    </style>
+</head>
+<body>
+    <h1>DL Booster Deep Link 測試頁</h1>
+    <p>這個頁面只是給自己 / 測試用，<b>所有錯誤訊息都直接寫在下面</b>，方便對照實際行為與截圖。</p>
+
+    <h2>動態錯誤訊息預覽（給測試 / 截圖用）</h2>
+    <div class="case" id="runtimeErrorCase" style="display: none;">
+        <div class="label">目前錯誤訊息</div>
+        <div id="runtimeErrorMessage" class="expect"></div>
+    </div>
+    <div class="expect">
+        使用方式：在網址後面加上 <code>?error=代碼</code>，重新整理就會在上面顯示對應錯誤文字，方便截圖。<br>
+        例如：<code>test.html?error=no_target</code>、<code>test.html?error=decode_fail</code>。
+    </div>
+
+    <h2>案例 1：正常 Deep Link（應該打得開）</h2>
+    <div class="case">
+        <div class="label">說明</div>
+        <div>這是一個由 redirect 產生、Base64 正確的 Deep Link。</div>
+        <a id="normalDeepLink"
+           href="dlb://b/aHR0cHM6Ly93d3cuZGxzaXRlLmNvbS9naXJscy93b3JrLz0vcHJvZHVjdF9pZC9SSjAxNTY3NTg3Lmh0bWwvP2xvY2FsZT16aF9UVw==">
+            測試開啟 DL Booster App（正常案例）
+        </a>
+        <div class="expect">
+            預期結果：<br>
+            - 已安裝 App：應該直接喚起 DL Booster App。<br>
+            - 未安裝 App：可能沒有反應或系統跳出無法開啟，屬正常現象。
+        </div>
+    </div>
+
+    <h2>案例 2：錯誤 Deep Link（App 不會開）</h2>
+    <div class="case">
+        <div class="label">說明</div>
+        <div>刻意改壞路徑，確認「點了沒開啟 App」的情況。</div>
+        <a href="dlb://b/INVALID_BASE64_DATA">
+            測試開啟 DL Booster App（錯誤 Deep Link）
+        </a>
+        <div class="expect">
+            預期結果：<br>
+            - 不論是否安裝 App，都有很大機率「沒有任何反應」或被系統擋住。<br>
+            - 這是用來模擬 Base64 壞掉 / Deep Link 格式錯誤時的真實行為。
+        </div>
+    </div>
+
+    <h2>案例 3：沒有 App 的情境說明（純文字）</h2>
+    <div class="case">
+        <div class="label">說明</div>
+        <div class="expect">
+            若手機上 <b>沒有安裝 DL Booster App</b>，點任何 <code>dlb://</code> 開頭的連結：<br>
+            - 有些裝置會跳出「找不到可以開啟此連結的 App」。<br>
+            - 有些裝置會完全沒反應，看起來像是「按鈕壞掉」。<br>
+            - 這並不是前端錯誤，而是系統找不到對應 App 的正常行為。
+        </div>
+    </div>
+
+    <script>
+        (function () {
+            const params = new URLSearchParams(window.location.search);
+            const errorCode = params.get('error');
+
+            /** 對應你常見的錯誤情境，可以自行再加 key */
+            const messages = {
+                no_target: '此連結缺少必要的參數（target），無法進行跳轉。請確認 redirect 連結是否完整，或從 DL Booster 重新產生連結。',
+                decode_fail: '無法解析目標網址（Base64 解碼失敗）。請確認連結是否被截斷或破壞，建議從 DL Booster 重新產生一次。',
+                webview_blocked: '偵測到是在 LINE / Facebook / 其他內建瀏覽器中開啟，本環境可能會阻擋自動開啟 App。請改用 Chrome 開啟此頁面，或直接使用下方 Deep Link 測試連結。',
+                auto_fail: '已嘗試自動開啟 App，但看起來沒有成功。請改用手動點擊 Deep Link 連結，或確認是否已安裝 DL Booster App。',
+                no_app: '系統回報找不到可以開啟 dlb:// 的 App。請先確認是否已安裝 DL Booster App，或檢查裝置是否支援此 Deep Link。'
+            };
+
+            const box = document.getElementById('runtimeErrorCase');
+            const msgEl = document.getElementById('runtimeErrorMessage');
+
+            if (!box || !msgEl) return;
+
+            // 1) 若網址有帶 error=xxx，直接顯示指定錯誤（方便手動指定類型截圖）
+            if (errorCode) {
+                const msg = messages[errorCode] || ('未知錯誤代碼：' + errorCode + '（請確認 error 參數是否正確）');
+                msgEl.textContent = msg;
+                box.style.display = 'block';
+            }
+
+            // 2) 點「正常 Deep Link」但 2 秒後仍停留在本頁，視為「看起來沒成功」，顯示錯誤說明
+            const normalLink = document.getElementById('normalDeepLink');
+            if (normalLink) {
+                normalLink.addEventListener('click', function () {
+                    setTimeout(function () {
+                        msgEl.textContent = '已嘗試開啟 DL Booster App，但看起來您仍停留在本頁。可能原因：未安裝 App、系統阻擋 Deep Link，或此裝置不支援此連結格式。';
+                        box.style.display = 'block';
+                    }, 2000);
+                });
+            }
+        })();
+    </script>
+</body>
+</html>

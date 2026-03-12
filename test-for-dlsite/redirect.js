@@ -1,136 +1,134 @@
-// redirect.js - 跳轉頁邏輯
-
-/**
- * 從 Base64 解碼字串
- */
 function decodeFromBase64(str) {
     try {
-        return decodeURIComponent(Array.prototype.map.call(atob(str), function(c) {
-            return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
-        }).join(''));
+        return decodeURIComponent(
+            Array.prototype.map.call(atob(str), function (c) {
+                return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+            }).join('')
+        );
     } catch (error) {
         console.error('Base64 解碼失敗:', error);
         return '';
     }
 }
 
-/**
- * 從 URL 參數取得目標網址
- */
-function getTargetUrl() {
+function getBase64Target() {
     const urlParams = new URLSearchParams(window.location.search);
-    const targetParam = urlParams.get('target');
-    
-    if (!targetParam) {
-        return null;
-    }
-
-    return decodeFromBase64(targetParam);
+    return urlParams.get('target');
 }
 
-/**
- * 嘗試開啟深度鏈結
- */
-function attemptDeepLink(base64Target) {
-    const deepLink = `dlb://b/${base64Target}`;
-    
-    console.log('嘗試開啟深度鏈結:', deepLink);
-
-    // 創建隱藏的 iframe 來觸發深度鏈結
-    const iframe = document.createElement('iframe');
-    iframe.style.display = 'none';
-    iframe.src = deepLink;
-    document.body.appendChild(iframe);
-
-    // 也嘗試直接改變 window.location
-    setTimeout(function() {
-        window.location.href = deepLink;
-    }, 25);
-
-    // 如果沒有成功跳轉,2.5 秒後顯示手動選項
-    setTimeout(function() {
-        showManualOptions();
-    }, 2500);
-}
-
-/**
- * 顯示手動跳轉選項
- */
 function showManualOptions() {
     const spinner = document.querySelector('.spinner');
     const loading = document.querySelector('.loading');
     const buttons = document.getElementById('buttons');
-    
+
     if (spinner) spinner.style.display = 'none';
-    if (loading) spinner.style.display = 'none';
+    if (loading) loading.style.display = 'none';
     if (buttons) buttons.style.display = 'flex';
+
+    // 若是自動跳轉流程顯示了手動選項，視為可能自動跳轉失敗
+    if (window.__dlbAutoDeepLinkTried) {
+        console.log('[DL Booster] 自動 Deep Link 可能未成功跳轉，已顯示手動選項');
+    }
 }
 
-/**
- * 初始化跳轉邏輯
- */
+function getEnvironmentInfo() {
+
+    const ua = navigator.userAgent;
+
+    const isAndroid = /Android/i.test(ua);
+    const isChrome = /Chrome/i.test(ua) && !/Edg|OPR|SamsungBrowser/i.test(ua);
+    const isLine = /Line/i.test(ua);
+    const isFB = /FBAN|FBAV/i.test(ua);
+    const isInstagram = /Instagram/i.test(ua);
+    const isWeChat = /MicroMessenger/i.test(ua);
+
+    const isWebView =
+        /(wv|WebView)/i.test(ua) ||
+        isLine ||
+        isFB ||
+        isInstagram ||
+        isWeChat;
+
+    return {
+        isAndroid,
+        isChrome,
+        isWebView
+    };
+}
+
+function buildDeepLink(base64Target) {
+    return `dlb://b/${base64Target}`;
+}
+
+function attemptDeepLink(base64Target) {
+
+    const env = getEnvironmentInfo();
+    const deepLink = buildDeepLink(base64Target);
+
+    if (env.isAndroid && env.isChrome && !env.isWebView) {
+
+        const fallback = encodeURIComponent("https://dlbooster.com/adn");
+
+        const intentUrl =
+            `intent://b/${base64Target}#Intent;scheme=dlb;package=com.dlbooster.app;S.browser_fallback_url=${fallback};end`;
+
+        window.location.href = intentUrl;
+
+    } else {
+
+        window.location.href = deepLink;
+
+    }
+
+    setTimeout(showManualOptions, 1800);
+}
+
 function initializeRedirect() {
-    const urlParams = new URLSearchParams(window.location.search);
-    const base64Target = urlParams.get('target');
+
+    const base64Target = getBase64Target();
 
     if (!base64Target) {
-        // 沒有目標參數,顯示錯誤
-        const container = document.querySelector('.container');
-        container.innerHTML = `
-            <div class="icon">⚠️</div>
-            <h1>無效的連結</h1>
-            <p class="message">此連結缺少必要的參數,無法進行跳轉。</p>
-            <div class="buttons" style="display: flex;">
-                <a href="https://dlbooster.com/adn" class="btn btn-secondary" target="_blank">
-                    無法前往 DLsite?請點我
-                </a>
-            </div>
-        `;
         return;
     }
 
-    // 解碼目標 URL
     const targetUrl = decodeFromBase64(base64Target);
 
-    if (!targetUrl) {
-        // 解碼失敗
-        const container = document.querySelector('.container');
-        container.innerHTML = `
-            <div class="icon">⚠️</div>
-            <h1>解析失敗</h1>
-            <p class="message">無法解析目標網址,請確認連結是否正確。</p>
-            <div class="buttons" style="display: flex;">
-                <a href="https://dlbooster.com/adn" class="btn btn-secondary" target="_blank">
-                    無法前往 DLsite?請點我
-                </a>
-            </div>
-        `;
-        return;
-    }
+    const openBtn = document.getElementById("openApp");
+    const directLink = document.getElementById("directLink");
 
-    // 設定直接連結按鈕
-    const directLink = document.getElementById('directLink');
     if (directLink) {
         directLink.href = targetUrl;
     }
 
-    // 嘗試開啟深度鏈結
-    attemptDeepLink(base64Target);
-}
+    if (openBtn) {
 
-// 頁面載入時執行
-if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', initializeRedirect);
-} else {
-    initializeRedirect();
-}
+        // 讓超連結本身就帶有 Deep Link，視覺上與實際連結一致
+        const deepLink = buildDeepLink(base64Target);
+        openBtn.href = deepLink;
 
-// 處理頁面可見性變化(用戶切回來時顯示按鈕)
-document.addEventListener('visibilitychange', function() {
-    if (!document.hidden) {
-        setTimeout(function() {
-            showManualOptions();
-        }, 500);
+        openBtn.onclick = function (e) {
+
+            // 由我們自己處理跳轉（包含 Android Chrome 的 intent 邏輯）
+            if (e && typeof e.preventDefault === 'function') {
+                e.preventDefault();
+            }
+
+            attemptDeepLink(base64Target);
+
+        };
+
     }
-});
 
+    // Android Chrome 非 WebView：載入時自動嘗試一次 Deep Link
+    const env = getEnvironmentInfo();
+    if (env.isAndroid && env.isChrome && !env.isWebView) {
+        // 標記這是自動嘗試，之後 showManualOptions 出現時可視為自動跳轉未成功
+        window.__dlbAutoDeepLinkTried = true;
+        attemptDeepLink(base64Target);
+    }
+
+    // 仍保留手動選項（例如 WebView、其他瀏覽器）
+    setTimeout(showManualOptions, 2000);
+}
+
+document.addEventListener("DOMContentLoaded", initializeRedirect);
